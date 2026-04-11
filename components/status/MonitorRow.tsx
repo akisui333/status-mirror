@@ -2,32 +2,38 @@ import { Monitor } from "@/types/status";
 import { UptimeBar } from "./UptimeBar";
 
 export function MonitorRow({ monitor }: { monitor: Monitor }) {
-  // Status mapping: 1 = UP, 0 = DOWN, 2 = PENDING, 3 = MAINTENANCE
   const isUp = monitor.status === 1;
-  const isDown = monitor.status === 0;
+  const uptimeValue =
+    typeof monitor.uptime === "number" ? monitor.uptime : isUp ? 100 : undefined;
+  const uptimeBadgeClass =
+    uptimeValue === 100
+      ? "bg-emerald-500 text-white"
+      : typeof uptimeValue === "number" && uptimeValue > 50
+        ? "bg-amber-500 text-white"
+        : "bg-red-500 text-white";
 
   return (
-    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 bg-white/[0.02] hover:bg-white/[0.04] transition-colors border-b border-white/5 last:border-b-0 gap-4 sm:gap-0">
-      <div className="flex items-center gap-3 w-full sm:w-auto">
-        <div className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
-          isUp ? 'bg-[#50d39e] text-white' :
-          isDown ? 'bg-red-500 text-white' :
-          'bg-yellow-500 text-white'
-        }`}>
-          {monitor.uptime !== undefined ? `${monitor.uptime}%` : isUp ? '100%' : 'N/A'}
+    <div className="flex flex-col gap-4 border-b border-slate-200 px-5 py-4 transition-colors last:border-b-0 hover:bg-slate-50 sm:px-6 lg:flex-row lg:items-center lg:justify-between">
+      <div className="flex min-w-0 items-center gap-4 lg:w-[430px] xl:w-[500px] lg:flex-none">
+        <div
+          className={`min-w-[82px] rounded-lg px-3.5 py-2 text-center text-base font-semibold tracking-tight sm:text-lg ${uptimeBadgeClass}`}
+        >
+          {typeof uptimeValue === "number" ? `${uptimeValue}%` : "暂无"}
         </div>
-        <div className="font-medium text-gray-200">{monitor.name}</div>
+        <div className="min-w-0 text-base font-medium leading-tight text-slate-900 sm:text-lg">
+          {monitor.name}
+        </div>
       </div>
 
-      <div className="flex flex-col items-end w-full sm:w-auto mt-2 sm:mt-0">
-        <div className="w-full overflow-x-auto overflow-y-hidden pb-1 sm:pb-0 scrollbar-hide">
-          <div className="min-w-max flex justify-end">
+      <div className="min-w-0 flex-1">
+        <div className="overflow-x-auto overflow-y-hidden pb-1 scrollbar-hide">
+          <div className="w-full min-w-[620px]">
             <UptimeBar heartbeats={monitor.heartbeats || []} monitorName={monitor.name} />
+            <div className="mt-2 flex justify-between text-xs tracking-[0.18em] text-slate-400">
+              <span>1小时前</span>
+              <span>现在</span>
+            </div>
           </div>
-        </div>
-        <div className="flex justify-between w-full text-[10px] text-gray-500 mt-1 uppercase tracking-wider">
-          <span>1h</span>
-          <span>Now</span>
         </div>
       </div>
     </div>

@@ -2,9 +2,15 @@ import { StatusData, MonitorGroup, Incident, Maintenance, Heartbeat } from "@/ty
 import * as cheerio from "cheerio";
 import JSON5 from "json5";
 
-// Internal cache to prevent spamming the source site
-let cachedData: StatusData | null = null;
-let lastFetchTime = 0;
+// Keep the last successful snapshot only as an error fallback.
+let lastSuccessfulData: StatusData | null = null;
+const BRAND_PATTERN = /ciii/gi;
+const BRAND_NAME = "深夜食堂";
+const DEFAULT_SITE_TITLE = "深夜食堂监控站";
+
+function replaceBrandText(value: string | undefined): string {
+  return (value || "").replace(BRAND_PATTERN, BRAND_NAME);
+}
 
 // Enrich monitor data with heartbeat history and calculate uptime
 function enrichDataWithHeartbeats(data: StatusData, heartbeatList: Record<string, Heartbeat[]>) {
@@ -12,7 +18,10 @@ function enrichDataWithHeartbeats(data: StatusData, heartbeatList: Record<string
     for (const monitor of group.monitorList) {
       const heartbeats = heartbeatList[monitor.id.toString()];
       if (heartbeats && heartbeats.length > 0) {
-        monitor.heartbeats = heartbeats.slice(-120); // Keep reasonable history limit
+        monitor.heartbeats = heartbeats.slice(-120).map((heartbeat) => ({
+          ...heartbeat,
+          msg: replaceBrandText(heartbeat.msg),
+        })); // Keep reasonable history limit
 
         const total = monitor.heartbeats.length;
         const upCount = monitor.heartbeats.filter(h => h.status === 1).length;
@@ -28,22 +37,15 @@ export async function fetchStatusData(): Promise<StatusData> {
   const slug = sourceUrl.split('/').filter(Boolean).pop() || "codex";
   const heartbeatUrl = sourceUrl.replace(`/status/${slug}`, `/api/status-page/heartbeat/${slug}`);
 
-  const cacheTtl = parseInt(process.env.CACHE_TTL || "60", 10) * 1000;
-
-  const now = Date.now();
-  if (cachedData && now - lastFetchTime < cacheTtl) {
-    return cachedData;
-  }
-
   try {
-    // We try to fetch the initial preload data from HTML
+    // Always request the latest source data for this page render.
     const [htmlResponse, heartbeatResponse] = await Promise.all([
       fetch(sourceUrl, {
-        next: { revalidate: cacheTtl / 1000 },
+        cache: "no-store",
         headers: { "User-Agent": "Status-Mirror-Bot/1.0" }
       }),
       fetch(heartbeatUrl, {
-        next: { revalidate: cacheTtl / 1000 },
+        cache: "no-store",
         headers: { "User-Agent": "Status-Mirror-Bot/1.0" }
       }).catch(e => {
         console.warn("Failed to fetch heartbeat data, falling back to empty heartbeats", e);
@@ -70,17 +72,16 @@ export async function fetchStatusData(): Promise<StatusData> {
       }
     }
 
-    cachedData = data;
-    lastFetchTime = now;
+    lastSuccessfulData = data;
 
     return data;
   } catch (error) {
     console.error("Error fetching status data:", error);
 
-    // Return stale cache if available, otherwise throw
-    if (cachedData) {
+    // Return the last good snapshot only if the source is temporarily failing.
+    if (lastSuccessfulData) {
       console.warn("Serving stale cached data due to fetch error");
-      return cachedData;
+      return lastSuccessfulData;
     }
 
     throw error;
@@ -130,17 +131,39 @@ function parsePreloadData(html: string): StatusData {
 // Normalize the Uptime Kuma specific data format to our generic format
 function normalizeStatusData(rawData: Record<string, unknown>): StatusData {
   const config = rawData.config as Record<string, unknown> | undefined;
+  const groups = ((rawData.publicGroupList as MonitorGroup[]) || []).map((group) => ({
+    ...group,
+    name: replaceBrandText(group.name),
+    monitorList: (group.monitorList || []).map((monitor) => ({
+      ...monitor,
+      name: replaceBrandText(monitor.name),
+    })),
+  }));
+  const incidents = ((rawData.incident as Incident[]) || []).map((incident) => ({
+    ...incident,
+    title: replaceBrandText(incident.title),
+    content: replaceBrandText(incident.content),
+  }));
+  const maintenances = ((rawData.maintenanceList as Maintenance[]) || []).map(
+    (maintenance) => ({
+      ...maintenance,
+      title: replaceBrandText(maintenance.title),
+      description: replaceBrandText(maintenance.description),
+      status: replaceBrandText(maintenance.status),
+    })
+  );
+  const siteTitle = process.env.SITE_TITLE || DEFAULT_SITE_TITLE;
 
   return {
     config: {
-      title: process.env.SITE_TITLE || (config?.title as string) || "Status",
-      description: (config?.description as string) || "",
-      footerText: (config?.footerText as string) || "",
+      title: siteTitle,
+      description: replaceBrandText((config?.description as string) || ""),
+      footerText: replaceBrandText((config?.footerText as string) || ""),
       theme: (config?.theme as string) || "dark",
     },
-    publicGroupList: (rawData.publicGroupList as MonitorGroup[]) || [],
-    incident: (rawData.incident as Incident[]) || [],
-    maintenanceList: (rawData.maintenanceList as Maintenance[]) || [],
+    publicGroupList: groups,
+    incident: incidents,
+    maintenanceList: maintenances,
     lastUpdated: new Date().toISOString(),
   };
 }

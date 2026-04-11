@@ -1,45 +1,51 @@
 import { StatusData } from "@/types/status";
-import { CheckCircle2, AlertTriangle, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, XCircle } from "lucide-react";
 
 export function StatusHero({ data }: { data: StatusData }) {
   const { title } = data.config;
 
-  // Determine overall status
   let overallStatus = "up";
-  let statusText = "All Systems Operational";
+  let statusText = "全部服务运行正常";
 
   const allMonitors = data.publicGroupList.flatMap((g) => g.monitorList || []);
 
   if (allMonitors.some((m) => m.status === 0)) {
     overallStatus = "down";
-    statusText = "Some Systems Are Down";
+    statusText = "部分服务不可用";
   } else if (allMonitors.some((m) => m.status === 2 || m.status === 3)) {
     overallStatus = "degraded";
-    statusText = "Degraded Performance or Maintenance";
+    statusText = "性能下降或维护中";
   } else if (data.incident && data.incident.length > 0) {
     overallStatus = "degraded";
-    statusText = "Active Incident";
+    statusText = "当前存在事件";
   }
 
   return (
-    <div className="mb-10 text-center sm:text-left flex flex-col sm:flex-row items-center justify-between gap-6">
-      <div>
-        <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2">{title}</h1>
+    <div className="mb-8 flex flex-col gap-5 border-b border-slate-200 pb-8 sm:flex-row sm:items-end sm:justify-between">
+      <div className="max-w-4xl">
+        <h1 className="text-3xl font-semibold tracking-tight text-slate-950 sm:text-4xl lg:text-[2.75rem]">
+          {title}
+        </h1>
         {data.config.description && (
-          <p className="text-gray-400 max-w-2xl">{data.config.description}</p>
+          <p className="mt-3 text-base leading-7 text-slate-600 sm:text-lg">
+            {data.config.description}
+          </p>
         )}
       </div>
 
-      <div className={`flex items-center gap-3 px-5 py-3 rounded-full border shadow-lg
-        ${overallStatus === 'up' ? 'bg-[#50d39e]/10 border-[#50d39e]/30 text-[#50d39e]' :
-          overallStatus === 'down' ? 'bg-red-500/10 border-red-500/30 text-red-500' :
-          'bg-yellow-500/10 border-yellow-500/30 text-yellow-500'
-        } backdrop-blur-md`}
+      <div
+        className={`inline-flex items-center gap-3 rounded-xl border px-5 py-3 text-base font-medium ${
+          overallStatus === "up"
+            ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+            : overallStatus === "down"
+              ? "border-red-200 bg-red-50 text-red-700"
+              : "border-amber-200 bg-amber-50 text-amber-700"
+        }`}
       >
-        {overallStatus === 'up' && <CheckCircle2 className="w-6 h-6" />}
-        {overallStatus === 'down' && <XCircle className="w-6 h-6" />}
-        {overallStatus === 'degraded' && <AlertTriangle className="w-6 h-6" />}
-        <span className="font-semibold">{statusText}</span>
+        {overallStatus === "up" && <CheckCircle2 className="h-6 w-6" />}
+        {overallStatus === "down" && <XCircle className="h-6 w-6" />}
+        {overallStatus === "degraded" && <AlertTriangle className="h-6 w-6" />}
+        <span>{statusText}</span>
       </div>
     </div>
   );

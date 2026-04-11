@@ -1,20 +1,9 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
-
 export const metadata: Metadata = {
-  title: "Status - Ciii Codex",
-  description: "Status page for Ciii Codex services",
+  title: "状态页 - 深夜食堂监控站",
+  description: "深夜食堂监控站服务状态页",
 };
 
 export default function RootLayout({
@@ -23,11 +12,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-    >
-      <body className="min-h-full flex flex-col">{children}</body>
+    <html lang="zh-CN" className="h-full bg-slate-50 text-slate-900 antialiased">
+      <body className="flex min-h-full flex-col bg-slate-50 text-slate-900 font-sans">
+        {children}
+      </body>
     </html>
   );
 }

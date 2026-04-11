@@ -41,7 +41,7 @@ npm run dev
 ```env
 SOURCE_STATUS_URL=https://status.ciii.club/status/codex
 CACHE_TTL=60
-SITE_TITLE=Ciii-codex Status
+SITE_TITLE=深夜食堂监控站
 ```
 
 说明：
