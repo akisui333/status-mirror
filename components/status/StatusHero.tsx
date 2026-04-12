@@ -1,24 +1,10 @@
+import { getOverallStatusSummary } from "@/lib/status/monitor-state";
 import { StatusData } from "@/types/status";
 import { AlertTriangle, CheckCircle2, XCircle } from "lucide-react";
 
 export function StatusHero({ data }: { data: StatusData }) {
   const { title } = data.config;
-
-  let overallStatus = "up";
-  let statusText = "全部服务运行正常";
-
-  const allMonitors = data.publicGroupList.flatMap((g) => g.monitorList || []);
-
-  if (allMonitors.some((m) => m.status === 0)) {
-    overallStatus = "down";
-    statusText = "部分服务不可用";
-  } else if (allMonitors.some((m) => m.status === 2 || m.status === 3)) {
-    overallStatus = "degraded";
-    statusText = "性能下降或维护中";
-  } else if (data.incident && data.incident.length > 0) {
-    overallStatus = "degraded";
-    statusText = "当前存在事件";
-  }
+  const { overallStatus, statusText } = getOverallStatusSummary(data);
 
   return (
     <div className="mb-8 flex flex-col gap-5 border-b border-slate-200 pb-8 sm:flex-row sm:items-end sm:justify-between">

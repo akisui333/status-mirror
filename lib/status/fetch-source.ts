@@ -18,10 +18,16 @@ function enrichDataWithHeartbeats(data: StatusData, heartbeatList: Record<string
     for (const monitor of group.monitorList) {
       const heartbeats = heartbeatList[monitor.id.toString()];
       if (heartbeats && heartbeats.length > 0) {
-        monitor.heartbeats = heartbeats.slice(-120).map((heartbeat) => ({
-          ...heartbeat,
-          msg: replaceBrandText(heartbeat.msg),
-        })); // Keep reasonable history limit
+        monitor.heartbeats = heartbeats
+          .slice()
+          .sort(
+            (left, right) => new Date(left.time).getTime() - new Date(right.time).getTime()
+          )
+          .slice(-120)
+          .map((heartbeat) => ({
+            ...heartbeat,
+            msg: replaceBrandText(heartbeat.msg),
+          })); // Keep reasonable history limit
 
         const total = monitor.heartbeats.length;
         const upCount = monitor.heartbeats.filter(h => h.status === 1).length;

@@ -1,8 +1,9 @@
+import { getMonitorCurrentStatus } from "@/lib/status/monitor-state";
 import { Monitor } from "@/types/status";
 import { UptimeBar } from "./UptimeBar";
 
 export function MonitorRow({ monitor }: { monitor: Monitor }) {
-  const isUp = monitor.status === 1;
+  const isUp = getMonitorCurrentStatus(monitor) === 1;
   const uptimeValue =
     typeof monitor.uptime === "number" ? monitor.uptime : isUp ? 100 : undefined;
   const uptimeBadgeClass =
