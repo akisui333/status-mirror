@@ -1,3 +1,5 @@
+"use client";
+
 import { formatBeijingDateTime } from "@/lib/status/time";
 import { Maintenance } from "@/types/status";
 

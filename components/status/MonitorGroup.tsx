@@ -1,3 +1,5 @@
+"use client";
+
 import { MonitorGroup as IMonitorGroup } from "@/types/status";
 import { MonitorRow } from "./MonitorRow";
 

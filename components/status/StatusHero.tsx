@@ -1,3 +1,6 @@
+"use client";
+
+import { formatBeijingDateTime } from "@/lib/status/time";
 import { getOverallStatusSummary } from "@/lib/status/monitor-state";
 import { StatusData } from "@/types/status";
 import { AlertTriangle, CheckCircle2, XCircle } from "lucide-react";
@@ -32,6 +35,17 @@ export function StatusHero({ data }: { data: StatusData }) {
         {overallStatus === "down" && <XCircle className="h-6 w-6" />}
         {overallStatus === "degraded" && <AlertTriangle className="h-6 w-6" />}
         <span>{statusText}</span>
+      </div>
+
+      <div className="text-sm text-slate-500 sm:ml-auto sm:text-right">
+        <div>最后同步：{formatBeijingDateTime(data.lastUpdated)} 北京时间</div>
+        {data.meta?.isStale && (
+          <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-left text-amber-800 sm:max-w-md">
+            当前展示的是缓存快照，最后一次成功同步：
+            {formatBeijingDateTime(data.meta.lastSuccessfulAt || data.lastUpdated)}。上游抓取失败：
+            {data.meta.fetchError || "未知错误"}
+          </div>
+        )}
       </div>
     </div>
   );

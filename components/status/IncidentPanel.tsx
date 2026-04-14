@@ -1,3 +1,5 @@
+"use client";
+
 import { parseSourceDate } from "@/lib/status/time";
 import { Incident } from "@/types/status";
 import { formatDistanceToNow } from "date-fns";

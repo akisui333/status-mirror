@@ -53,4 +53,9 @@ export interface StatusData {
   incident: Incident[];
   maintenanceList: Maintenance[];
   lastUpdated: string; // ISO string when data was fetched
+  meta?: {
+    isStale?: boolean;
+    fetchError?: string;
+    lastSuccessfulAt?: string;
+  };
 }

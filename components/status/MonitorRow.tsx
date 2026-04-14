@@ -1,3 +1,5 @@
+"use client";
+
 import { getMonitorCurrentStatus } from "@/lib/status/monitor-state";
 import { Monitor } from "@/types/status";
 import { UptimeBar } from "./UptimeBar";

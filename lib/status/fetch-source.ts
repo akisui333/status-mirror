@@ -4,12 +4,61 @@ import JSON5 from "json5";
 
 // Keep the last successful snapshot only as an error fallback.
 let lastSuccessfulData: StatusData | null = null;
+const DEFAULT_MAX_STALE_FALLBACK_SECONDS = 300;
 const BRAND_PATTERN = /ciii/gi;
 const BRAND_NAME = "深夜食堂";
 const DEFAULT_SITE_TITLE = "深夜食堂监控站";
 
 function replaceBrandText(value: string | undefined): string {
   return (value || "").replace(BRAND_PATTERN, BRAND_NAME);
+}
+
+function getMaxStaleFallbackMs(): number {
+  const rawValue = Number(
+    process.env.MAX_STALE_FALLBACK_SECONDS || DEFAULT_MAX_STALE_FALLBACK_SECONDS
+  );
+
+  if (!Number.isFinite(rawValue) || rawValue < 0) {
+    return DEFAULT_MAX_STALE_FALLBACK_SECONDS * 1000;
+  }
+
+  return rawValue * 1000;
+}
+
+function getSourceRequestHeaders(): HeadersInit {
+  return {
+    "User-Agent": process.env.SOURCE_FETCH_USER_AGENT || "Status-Mirror-Bot/1.0",
+    Accept: "text/html,application/json;q=0.9,*/*;q=0.8",
+    "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+    "Cache-Control": "no-cache",
+    Pragma: "no-cache",
+  };
+}
+
+async function describeUpstreamError(response: Response, label: string): Promise<string> {
+  const bodyPreview = (await response.text()).replace(/\s+/g, " ").trim().slice(0, 240);
+  const isCloudflareChallenge = /just a moment|challenge-platform|cf-browser-verification/i.test(
+    bodyPreview
+  );
+
+  return [
+    `${label} returned ${response.status} ${response.statusText}`,
+    isCloudflareChallenge ? "possible Cloudflare anti-bot challenge" : null,
+    bodyPreview ? `body preview: ${bodyPreview}` : null,
+  ]
+    .filter(Boolean)
+    .join(" | ");
+}
+
+function createStaleSnapshot(data: StatusData, fetchError: string): StatusData {
+  return {
+    ...data,
+    meta: {
+      isStale: true,
+      fetchError,
+      lastSuccessfulAt: data.lastUpdated,
+    },
+  };
 }
 
 // Enrich monitor data with heartbeat history and calculate uptime
@@ -42,17 +91,19 @@ export async function fetchStatusData(): Promise<StatusData> {
   // The slug is the last part of the URL, e.g., 'codex'
   const slug = sourceUrl.split('/').filter(Boolean).pop() || "codex";
   const heartbeatUrl = sourceUrl.replace(`/status/${slug}`, `/api/status-page/heartbeat/${slug}`);
+  const requestHeaders = getSourceRequestHeaders();
+  const maxStaleFallbackMs = getMaxStaleFallbackMs();
 
   try {
     // Always request the latest source data for this page render.
     const [htmlResponse, heartbeatResponse] = await Promise.all([
       fetch(sourceUrl, {
         cache: "no-store",
-        headers: { "User-Agent": "Status-Mirror-Bot/1.0" }
+        headers: requestHeaders,
       }),
       fetch(heartbeatUrl, {
         cache: "no-store",
-        headers: { "User-Agent": "Status-Mirror-Bot/1.0" }
+        headers: requestHeaders,
       }).catch(e => {
         console.warn("Failed to fetch heartbeat data, falling back to empty heartbeats", e);
         return null;
@@ -60,7 +111,7 @@ export async function fetchStatusData(): Promise<StatusData> {
     ]);
 
     if (!htmlResponse.ok) {
-      throw new Error(`Failed to fetch source: ${htmlResponse.status} ${htmlResponse.statusText}`);
+      throw new Error(await describeUpstreamError(htmlResponse, "Source status page"));
     }
 
     const html = await htmlResponse.text();
@@ -76,6 +127,8 @@ export async function fetchStatusData(): Promise<StatusData> {
       } catch (e) {
         console.warn("Failed to parse heartbeat data", e);
       }
+    } else if (heartbeatResponse) {
+      console.warn(await describeUpstreamError(heartbeatResponse, "Heartbeat API"));
     }
 
     lastSuccessfulData = data;
@@ -83,11 +136,27 @@ export async function fetchStatusData(): Promise<StatusData> {
     return data;
   } catch (error) {
     console.error("Error fetching status data:", error);
+    const errorMessage = error instanceof Error ? error.message : "Unknown upstream fetch error";
 
     // Return the last good snapshot only if the source is temporarily failing.
     if (lastSuccessfulData) {
-      console.warn("Serving stale cached data due to fetch error");
-      return lastSuccessfulData;
+      const lastSuccessTime = Date.parse(lastSuccessfulData.lastUpdated);
+      const fallbackAgeMs = Number.isNaN(lastSuccessTime)
+        ? Number.POSITIVE_INFINITY
+        : Date.now() - lastSuccessTime;
+
+      if (fallbackAgeMs <= maxStaleFallbackMs) {
+        console.warn("Serving stale cached data due to fetch error", {
+          fallbackAgeMs,
+          maxStaleFallbackMs,
+        });
+        return createStaleSnapshot(lastSuccessfulData, errorMessage);
+      }
+
+      console.error("Cached snapshot is too old to serve safely", {
+        fallbackAgeMs,
+        maxStaleFallbackMs,
+      });
     }
 
     throw error;
