@@ -19,6 +19,10 @@ function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "发生未知错误";
 }
 
+function getResponsePreview(text: string): string {
+  return text.replace(/\s+/g, " ").trim().slice(0, 180);
+}
+
 export function StatusPageClient({ intervalMs = 30_000 }: StatusPageClientProps) {
   const [statusData, setStatusData] = useState<StatusData | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -41,13 +45,30 @@ export function StatusPageClient({ intervalMs = 30_000 }: StatusPageClientProps)
     isFetchingRef.current = true;
 
     try {
-      const response = await fetch("/api/status/codex", {
+      const response = await fetch(`/api/status/codex?_=${Date.now()}`, {
         cache: "no-store",
         headers: {
           Accept: "application/json",
         },
       });
-      const payload = (await response.json()) as StatusData | StatusApiError;
+      const contentType = response.headers.get("content-type") || "";
+      const rawText = await response.text();
+
+      if (!contentType.toLowerCase().includes("application/json")) {
+        throw new Error(
+          `本地 API /api/status/codex 返回了 ${response.status} ${response.statusText}，内容不是 JSON。很可能是反向代理、Cloudflare 或 Nginx 返回了 HTML 页面。响应片段：${getResponsePreview(rawText)}`
+        );
+      }
+
+      let payload: StatusData | StatusApiError;
+
+      try {
+        payload = JSON.parse(rawText) as StatusData | StatusApiError;
+      } catch {
+        throw new Error(
+          `本地 API /api/status/codex 返回的 JSON 无法解析，响应片段：${getResponsePreview(rawText)}`
+        );
+      }
 
       if (!response.ok) {
         throw new Error(
